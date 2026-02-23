@@ -1,0 +1,13 @@
+# Build output
+build/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+
+# Config (may contain sensitive info)
+# .zsxq_config.json
