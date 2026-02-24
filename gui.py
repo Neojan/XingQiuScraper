@@ -87,6 +87,20 @@ class App:
         y = (self.root.winfo_screenheight() // 2) - (h // 2)
         self.root.geometry('{}x{}+{}+{}'.format(w, h, x, y))
 
+        # 设置窗口图标
+        try:
+            import sys
+            if hasattr(sys, '_MEIPASS'):
+                icon_path = os.path.join(sys._MEIPASS, 'xq_icon.png')
+            else:
+                icon_path = os.path.join(os.path.dirname(__file__), 'xq_icon.png')
+            if os.path.exists(icon_path):
+                icon_img = tk.PhotoImage(file=icon_path)
+                self.root.iconphoto(True, icon_img)
+                self._icon_img = icon_img  # 防止被 GC 回收
+        except Exception:
+            pass
+
     def _setup_styles(self):
         style = ttk.Style()
         style.theme_use('clam')

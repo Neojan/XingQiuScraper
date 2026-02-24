@@ -14,7 +14,7 @@ a = Analysis(
     ['gui.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('xq_icon.png', '.')],
     hiddenimports=['scraper'],
     hookspath=[],
     hooksconfig={},
@@ -53,7 +53,7 @@ if sys.platform == 'darwin':
     app = BUNDLE(
         exe,
         name='知识星球爬取工具.app',
-        icon=None,
+        icon='xq_icon.icns',
         bundle_identifier='com.zsxq.scraper',
         info_plist={
             'CFBundleName': '知识星球爬取工具',

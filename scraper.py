@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import re
+import traceback
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional, Callable
@@ -253,10 +254,25 @@ class Scraper:
         if end_time is not None:
             params['end_time'] = end_time
 
-        r = requests.get(self.base_url, headers=self.headers, params=params, allow_redirects=False)
-        self.log('请求: {}'.format(r.url))
+        try:
+            r = requests.get(self.base_url, headers=self.headers, params=params, allow_redirects=False)
+            self.log('请求: {} [状态码:{}]'.format(r.url, r.status_code))
+        except Exception as e:
+            self.log('❌ 网络请求失败: {}'.format(e))
+            self.log(traceback.format_exc())
+            time.sleep(10)
+            if not self.is_stopped:
+                self.topic_q.put(end_time)
+            return
 
-        d = r.json()
+        try:
+            d = r.json()
+        except Exception as e:
+            self.log('❌ 解析JSON失败: {}, 响应内容: {}'.format(e, r.text[:500]))
+            time.sleep(10)
+            if not self.is_stopped:
+                self.topic_q.put(end_time)
+            return
         if not d['succeeded']:
             self.log('获取 topics 失败: {}'.format(d))
             time.sleep(15)
@@ -354,10 +370,15 @@ class Scraper:
             self.ensure_dir(images_dir)
             filepath = os.path.join(images_dir, '{}.{}'.format(image_id, subfix))
 
-            with open(filepath, "wb+") as file:
-                response = requests.get(url, headers=self.headers)
-                file.write(response.content)
-            self.log('图片已保存: {}'.format(filepath))
+            try:
+                response = requests.get(url, headers=self.headers, timeout=60)
+                response.raise_for_status()
+                with open(filepath, "wb+") as file:
+                    file.write(response.content)
+                self.log('图片已保存: {} ({} bytes)'.format(filepath, len(response.content)))
+            except Exception as e:
+                self.log('❌ 图片下载失败 [image_id={}]: {}'.format(image_id, e))
+                self.log(traceback.format_exc())
 
         # if 'thumbnail' in img_info:
         #     download(img_info['thumbnail']['url'], img_info['image_id'], 'thumbnail', img_info['type'])
@@ -375,16 +396,28 @@ class Scraper:
             files_dir = os.path.join(self.config.output_dir, 'files')
             self.ensure_dir(files_dir)
 
-            with open(filename, "wb+") as file:
-                response = requests.get(url, headers=self.headers)
-                file.write(response.content)
-            self.log('文件已保存: {}'.format(filename))
+            try:
+                response = requests.get(url, headers=self.headers, timeout=120)
+                response.raise_for_status()
+                with open(filename, "wb+") as file:
+                    file.write(response.content)
+                self.log('文件已保存: {} ({} bytes)'.format(filename, len(response.content)))
+            except Exception as e:
+                self.log('❌ 文件下载失败 [{}]: {}'.format(filename, e))
+                self.log(traceback.format_exc())
 
+        self.log('获取文件下载链接: file_id={}, name={}'.format(file_info['file_id'], file_info.get('name', '')))
         url = 'https://api.zsxq.com/v2/files/{}/download_url'.format(file_info['file_id'])
-        r = requests.get(url, headers=self.headers)
-        d = r.json()
+        try:
+            r = requests.get(url, headers=self.headers, timeout=30)
+            d = r.json()
+        except Exception as e:
+            self.log('❌ 获取文件下载链接失败: {}'.format(e))
+            self.log(traceback.format_exc())
+            return
+
         if not d['succeeded']:
-            self.log('获取文件下载链接失败: {}'.format(d))
+            self.log('❌ 获取文件下载链接失败: {}'.format(d))
             return
 
         files_dir = os.path.join(self.config.output_dir, 'files')
@@ -394,43 +427,69 @@ class Scraper:
 
         self._file_count += 1
         self.on_progress('files', self._file_count)
+        self.log('剩余文件: {}'.format(self.file_q.qsize()))
 
     # ---- 线程方法 ----
 
     def _topics_thread(self):
+        self.log('📡 Topics 线程已启动')
         while not self.is_stopped:
             try:
                 job = self.topic_q.get(timeout=1)
             except queue.Empty:
                 continue
-            result = self.fetch_topics(job)
+            try:
+                result = self.fetch_topics(job)
+            except Exception as e:
+                self.log('❌ Topics 线程异常: {}'.format(e))
+                self.log(traceback.format_exc())
+                result = None
             self.topic_q.task_done()
             if result == 'done':
                 break
+        self.log('📡 Topics 线程已结束')
 
     def _images_thread(self):
+        self.log('🖼️ 图片下载线程已启动')
         while not self.is_stopped:
             try:
                 job = self.image_q.get(timeout=1)
             except queue.Empty:
                 continue
-            self.fetch_images(job)
+            try:
+                self.fetch_images(job)
+            except Exception as e:
+                self.log('❌ 图片线程异常: {}'.format(e))
+                self.log(traceback.format_exc())
             self.image_q.task_done()
+        self.log('🖼️ 图片下载线程已结束')
 
     def _files_thread(self):
+        self.log('📁 文件下载线程已启动')
         while not self.is_stopped:
             try:
                 job = self.file_q.get(timeout=1)
             except queue.Empty:
                 continue
-            self.fetch_files(job)
+            try:
+                self.fetch_files(job)
+            except Exception as e:
+                self.log('❌ 文件线程异常: {}'.format(e))
+                self.log(traceback.format_exc())
             self.file_q.task_done()
+        self.log('📁 文件下载线程已结束')
 
     # ---- 主入口 ----
 
     def run(self):
         """在当前线程/新线程中运行爬取任务"""
         try:
+            self.log('===== 开始爬取 =====')
+            self.log('配置: group={}, start_time={}, end_time={}'.format(
+                self.config.group, self.config.start_time or '(无)', self.config.end_time or '(无)'))
+            self.log('配置: 图片={}, 文件={}'.format(
+                '开启' if self.config.enable_images else '关闭',
+                '开启' if self.config.enable_files else '关闭'))
             self.ensure_dir(self.config.output_dir)
             self.log('输出目录: {}'.format(os.path.abspath(self.config.output_dir)))
 
@@ -476,7 +535,8 @@ class Scraper:
                     self._topic_count, self._image_count, self._file_count))
 
         except Exception as e:
-            self.log('爬取出错: {}'.format(e))
+            self.log('❌ 爬取出错: {}'.format(e))
+            self.log(traceback.format_exc())
             self.on_finished(False, str(e))
 
 
