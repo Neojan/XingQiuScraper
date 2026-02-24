@@ -38,25 +38,25 @@ def save_config_to_file(config_dict):
 
 # ---- 主题色彩 ----
 class Theme:
-    # 深色主题
-    BG = '#1a1b2e'
-    BG_SECONDARY = '#232442'
-    BG_CARD = '#2a2b4a'
-    BG_INPUT = '#1e1f3a'
+    # 浅色主题 - 高对比度，文字清晰
+    BG = '#f0f2f5'
+    BG_SECONDARY = '#dfe3ea'
+    BG_CARD = '#ffffff'
+    BG_INPUT = '#f8f9fb'
     BG_BUTTON = '#6c5ce7'
-    BG_BUTTON_HOVER = '#7d6ff0'
+    BG_BUTTON_HOVER = '#5a4bd6'
     BG_BUTTON_DANGER = '#e74c3c'
-    BG_BUTTON_DANGER_HOVER = '#ff6b6b'
-    BG_SUCCESS = '#00b894'
-    FG = '#e8e8f0'
-    FG_SECONDARY = '#9a9ab4'
-    FG_ACCENT = '#a29bfe'
-    FG_TITLE = '#ffffff'
-    BORDER = '#3a3b5c'
+    BG_BUTTON_DANGER_HOVER = '#d63c2c'
+    BG_SUCCESS = '#27ae60'
+    FG = '#2c3e50'
+    FG_SECONDARY = '#7f8c9b'
+    FG_ACCENT = '#6c5ce7'
+    FG_TITLE = '#1a1a2e'
+    BORDER = '#d1d5de'
     HIGHLIGHT = '#6c5ce7'
-    LOG_BG = '#151626'
-    LOG_FG = '#c8c8e0'
-    PROGRESS_BG = '#2a2b4a'
+    LOG_BG = '#1e2030'
+    LOG_FG = '#e0e0f0'
+    PROGRESS_BG = '#dfe3ea'
     PROGRESS_FG = '#6c5ce7'
 
 
@@ -441,7 +441,7 @@ class App:
         # 清空日志按钮
         btn_clear = tk.Button(log_frame, text='🗑 清空日志',
                               command=self._clear_log,
-                              bg=Theme.BG_SECONDARY, fg=Theme.FG_SECONDARY,
+                              bg=Theme.BG_SECONDARY, fg=Theme.FG,
                               activebackground=Theme.BG_CARD,
                               activeforeground=Theme.FG,
                               font=('SF Pro Text', 9),
@@ -490,10 +490,10 @@ class App:
         def _do():
             self.is_running = running
             if running:
-                self.btn_start.configure(state=tk.DISABLED, bg='#4a4b6a')
+                self.btn_start.configure(state=tk.DISABLED, bg='#b8b5d4')
                 self.btn_stop.configure(state=tk.NORMAL)
                 self.progress.start(15)
-                self.label_status.configure(text='⏳ 正在爬取...', fg='#ffd93d')
+                self.label_status.configure(text='⏳ 正在爬取...', fg='#e67e22')
             else:
                 self.btn_start.configure(state=tk.NORMAL, bg=Theme.BG_BUTTON)
                 self.btn_stop.configure(state=tk.DISABLED)
@@ -618,10 +618,45 @@ class App:
             on_log=lambda msg: self._append_log(msg),
             on_progress=lambda cat, cnt: self._update_progress(cat, cnt),
             on_finished=on_finished,
+            on_duplicate=self._on_duplicate,
+            on_file_exists=self._on_file_exists,
         )
 
         thread = threading.Thread(target=self.scraper.run, daemon=True)
         thread.start()
+
+    def _on_duplicate(self, create_time):
+        """从工作线程调用，弹窗询问用户是否退出（线程安全）"""
+        result = [False]  # False=继续, True=退出
+        event = threading.Event()
+
+        def _ask():
+            answer = messagebox.askyesno(
+                '发现重复内容',
+                '检测到重复的 create_time:\n{}\n\n是否停止爬取？\n\n点击「是」停止，点击「否」跳过继续'.format(create_time))
+            result[0] = answer
+            event.set()
+
+        self.root.after(0, _ask)
+        event.wait()  # 阻塞工作线程直到用户做出选择
+        return result[0]
+
+    def _on_file_exists(self, filepath):
+        """从工作线程调用，弹窗询问用户是否覆盖文件（线程安全）"""
+        result = [False]  # False=追加, True=覆盖
+        event = threading.Event()
+
+        def _ask():
+            answer = messagebox.askyesno(
+                '文件已存在',
+                '输出文件已存在：\n{}\n\n是否覆盖文件内容？\n\n点击「是」覆盖，点击「否」追加'.format(
+                    os.path.basename(filepath)))
+            result[0] = answer
+            event.set()
+
+        self.root.after(0, _ask)
+        event.wait()
+        return result[0]
 
     def _stop_scraper(self):
         if self.scraper:

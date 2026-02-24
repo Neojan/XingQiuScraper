@@ -35,11 +35,17 @@ class Scraper:
     def __init__(self, config: ScraperConfig,
                  on_log: Optional[Callable[[str], None]] = None,
                  on_progress: Optional[Callable[[str, int], None]] = None,
-                 on_finished: Optional[Callable[[bool, str], None]] = None):
+                 on_finished: Optional[Callable[[bool, str], None]] = None,
+                 on_duplicate: Optional[Callable[[str], bool]] = None,
+                 on_file_exists: Optional[Callable[[str], bool]] = None):
         self.config = config
         self.on_log = on_log or (lambda msg: logger.info(msg))
         self.on_progress = on_progress or (lambda msg, count: None)
         self.on_finished = on_finished or (lambda success, msg: None)
+        # on_duplicate(create_time) -> True 表示用户选择退出, False 表示跳过继续
+        self.on_duplicate = on_duplicate or (lambda ct: False)
+        # on_file_exists(filepath) -> True 表示覆盖, False 表示追加
+        self.on_file_exists = on_file_exists or (lambda fp: False)
 
         self.base_url = 'https://api.zsxq.com/v2/groups/{}/topics'.format(config.group)
         self.headers = {
@@ -51,6 +57,8 @@ class Scraper:
         self._topic_count = 0
         self._image_count = 0
         self._file_count = 0
+        self._seen_times = set()  # 已见过的 create_time 集合
+        self._checked_files = set()  # 已检查过的文件路径
 
         # 任务队列
         self.topic_q = queue.Queue()
@@ -98,7 +106,7 @@ class Scraper:
 
         owner = topic.get('talk', topic.get('question', {})).get('owner', {})
         author = owner.get('name', '未知')
-        lines.append('## {}-{}-{}'.format(create_time, author, topic_type))
+        lines.append('## {}-{}'.format(create_time, author))
         lines.append('')
 
         if topic_type == 'talk' and 'talk' in topic:
@@ -116,7 +124,7 @@ class Scraper:
                 for img in talk['images']:
                     image_id = img['image_id']
                     img_type = img.get('type', 'jpg')
-                    lines.append('![image](../images/{}/large.{})'.format(image_id, img_type))
+                    lines.append('![image](../images/{}/original.{})'.format(image_id, img_type))
                     lines.append('')
 
             if 'files' in talk:
@@ -146,7 +154,7 @@ class Scraper:
                     for img in question['images']:
                         image_id = img['image_id']
                         img_type = img.get('type', 'jpg')
-                        lines.append('![image](../images/{}/large.{})'.format(image_id, img_type))
+                        lines.append('![image](../images/{}/original.{})'.format(image_id, img_type))
                         lines.append('')
 
                 if 'files' in question:
@@ -175,7 +183,7 @@ class Scraper:
                     for img in answer['images']:
                         image_id = img['image_id']
                         img_type = img.get('type', 'jpg')
-                        lines.append('![image](../images/{}/large.{})'.format(image_id, img_type))
+                        lines.append('![image](../images/{}/original.{})'.format(image_id, img_type))
                         lines.append('')
 
                 if 'files' in answer:
@@ -201,6 +209,20 @@ class Scraper:
         self.ensure_dir(topics_dir)
 
         filepath = os.path.join(topics_dir, filename)
+
+        # 检查文件是否已存在（每个文件只提示一次）
+        if filepath not in self._checked_files:
+            self._checked_files.add(filepath)
+            if os.path.exists(filepath):
+                self.log('⚠️ 文件已存在: {}'.format(filepath))
+                overwrite = self.on_file_exists(filepath)
+                if overwrite:
+                    self.log('用户选择覆盖文件')
+                    with open(filepath, 'w', encoding='utf-8') as f:
+                        f.write('')  # 清空文件
+                else:
+                    self.log('用户选择追加内容')
+
         md_content = self.topic_to_markdown(topic)
 
         with open(filepath, 'a', encoding='utf-8') as f:
@@ -261,6 +283,17 @@ class Scraper:
             elif status == 'after':
                 continue
             else:
+                # 检查是否重复
+                if create_time in self._seen_times:
+                    self.log('⚠️ 发现重复内容，create_time={}'.format(create_time))
+                    should_stop = self.on_duplicate(create_time)
+                    if should_stop:
+                        self.log('用户选择退出')
+                        return 'done'
+                    else:
+                        self.log('跳过重复内容，继续爬取')
+                        continue
+                self._seen_times.add(create_time)
                 filtered_topics.append(topic)
 
         if filtered_topics:
