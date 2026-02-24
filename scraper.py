@@ -124,7 +124,7 @@ class Scraper:
                 for img in talk['images']:
                     image_id = img['image_id']
                     img_type = img.get('type', 'jpg')
-                    lines.append('![image](../images/{}/original.{})'.format(image_id, img_type))
+                    lines.append('![image](../images/{}.{})'.format(image_id, img_type))
                     lines.append('')
 
             if 'files' in talk:
@@ -133,7 +133,7 @@ class Scraper:
                 for f in talk['files']:
                     file_id = f['file_id']
                     name = f.get('name', 'unknown')
-                    lines.append('- [{}](../files/{}/{})'.format(name, file_id, name))
+                    lines.append('- [{}](../files/{}_{})'.format(name, file_id, name))
                 lines.append('')
 
         elif topic_type == 'q&a':
@@ -154,7 +154,7 @@ class Scraper:
                     for img in question['images']:
                         image_id = img['image_id']
                         img_type = img.get('type', 'jpg')
-                        lines.append('![image](../images/{}/original.{})'.format(image_id, img_type))
+                        lines.append('![image](../images/{}.{})'.format(image_id, img_type))
                         lines.append('')
 
                 if 'files' in question:
@@ -163,7 +163,7 @@ class Scraper:
                     for f in question['files']:
                         file_id = f['file_id']
                         name = f.get('name', 'unknown')
-                        lines.append('- [{}](../files/{}/{})'.format(name, file_id, name))
+                        lines.append('- [{}](../files/{}_{})'.format(name, file_id, name))
                     lines.append('')
 
             if 'answer' in topic:
@@ -183,7 +183,7 @@ class Scraper:
                     for img in answer['images']:
                         image_id = img['image_id']
                         img_type = img.get('type', 'jpg')
-                        lines.append('![image](../images/{}/original.{})'.format(image_id, img_type))
+                        lines.append('![image](../images/{}.{})'.format(image_id, img_type))
                         lines.append('')
 
                 if 'files' in answer:
@@ -192,7 +192,7 @@ class Scraper:
                     for f in answer['files']:
                         file_id = f['file_id']
                         name = f.get('name', 'unknown')
-                        lines.append('- [{}](../files/{}/{})'.format(name, file_id, name))
+                        lines.append('- [{}](../files/{}_{})'.format(name, file_id, name))
                     lines.append('')
 
         return '\n'.join(lines)
@@ -350,17 +350,14 @@ class Scraper:
 
     def fetch_images(self, img_info):
         def download(url, image_id, type_, subfix):
-            target_dir = os.path.join(self.config.output_dir, 'images', str(image_id), '{}.{}'.format(type_, subfix))
-            if not os.path.exists(os.path.dirname(target_dir)):
-                try:
-                    os.makedirs(os.path.dirname(target_dir))
-                except Exception as e:
-                    self.log('创建图片目录出错: {}'.format(e))
+            images_dir = os.path.join(self.config.output_dir, 'images')
+            self.ensure_dir(images_dir)
+            filepath = os.path.join(images_dir, '{}.{}'.format(image_id, subfix))
 
-            with open(target_dir, "wb+") as file:
+            with open(filepath, "wb+") as file:
                 response = requests.get(url, headers=self.headers)
                 file.write(response.content)
-            self.log('图片已保存: {}'.format(target_dir))
+            self.log('图片已保存: {}'.format(filepath))
 
         # if 'thumbnail' in img_info:
         #     download(img_info['thumbnail']['url'], img_info['image_id'], 'thumbnail', img_info['type'])
@@ -375,11 +372,8 @@ class Scraper:
 
     def fetch_files(self, file_info):
         def download(url, filename):
-            if not os.path.exists(os.path.dirname(filename)):
-                try:
-                    os.makedirs(os.path.dirname(filename))
-                except Exception as e:
-                    self.log('创建文件目录出错: {}'.format(e))
+            files_dir = os.path.join(self.config.output_dir, 'files')
+            self.ensure_dir(files_dir)
 
             with open(filename, "wb+") as file:
                 response = requests.get(url, headers=self.headers)
@@ -393,8 +387,10 @@ class Scraper:
             self.log('获取文件下载链接失败: {}'.format(d))
             return
 
-        download(d['resp_data']['download_url'],
-                 os.path.join(self.config.output_dir, 'files', str(file_info['file_id']), file_info['name']))
+        files_dir = os.path.join(self.config.output_dir, 'files')
+        self.ensure_dir(files_dir)
+        filepath = os.path.join(files_dir, '{}_{}'.format(file_info['file_id'], file_info['name']))
+        download(d['resp_data']['download_url'], filepath)
 
         self._file_count += 1
         self.on_progress('files', self._file_count)
