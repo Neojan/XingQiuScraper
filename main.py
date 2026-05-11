@@ -2,21 +2,48 @@
 知识星球内容爬取工具 - 命令行入口
 """
 import argparse
+import json
 import logging
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
 
 from scraper import ScraperConfig, Scraper, parse_time_arg
 
+# 配置文件路径
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.zsxq_config.json')
+
+
+def load_config():
+    """从 .zsxq_config.json 加载配置，返回字典，文件不存在或解析失败时返回空字典"""
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
 # 全局时间过滤范围默认值
-DEFAULT_START_TIME = '2026-01-01'
-DEFAULT_END_TIME = datetime.now().strftime('%Y-%m-%d')
+DEFAULT_START_TIME = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+DEFAULT_END_TIME = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
 
 # 是否爬取图片和文件（默认不爬取）
 DEFAULT_NO_IMAGES = True
 DEFAULT_NO_FILES = True
 
-GROUP = ''
-COOKIES = ''
+# 从配置文件加载初始值（命令行参数可覆盖）
+_cfg = load_config()
+GROUP = _cfg.get('group', '')
+COOKIES = _cfg.get('cookies', '')
+
+# 若配置文件中 end_time 为空，则沿用 DEFAULT_END_TIME
+_cfg_end_time = _cfg.get('end_time', '')
+if _cfg_end_time:
+    DEFAULT_END_TIME = _cfg_end_time
+
+_cfg_start_time = _cfg.get('start_time', '')
+if _cfg_start_time:
+    DEFAULT_START_TIME = _cfg_start_time
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()

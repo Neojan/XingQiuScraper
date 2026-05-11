@@ -8,7 +8,7 @@ import threading
 import os
 import sys
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from scraper import ScraperConfig, Scraper, parse_time_arg
 
@@ -279,10 +279,11 @@ class App:
     def _build_time_card(self, parent):
         card = self._make_card(parent, '⏱ 时间范围')
 
-        today = datetime.now().strftime('%Y-%m-%d')
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
 
-        self.entry_start = self._make_field(card, '开始时间', '2026-01-01')
-        self.entry_end = self._make_field(card, '结束时间', today)
+        self.entry_start = self._make_field(card, '开始时间', yesterday)
+        self.entry_end = self._make_field(card, '结束时间', tomorrow)
 
         hint = tk.Label(card, text='格式: YYYY-MM-DD 或 YYYY-MM-DDTHH:MM:SS',
                         bg=Theme.BG_CARD, fg=Theme.FG_SECONDARY,
@@ -549,10 +550,12 @@ class App:
             self.text_cookie.insert('1.0', saved['cookies'])
         if 'start_time' in saved:
             self.entry_start.delete(0, tk.END)
-            self.entry_start.insert(0, saved['start_time'])
+            val = saved['start_time'] or (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+            self.entry_start.insert(0, val)
         if 'end_time' in saved:
             self.entry_end.delete(0, tk.END)
-            self.entry_end.insert(0, saved['end_time'])
+            val = saved['end_time'] or (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+            self.entry_end.insert(0, val)
         if 'enable_images' in saved:
             self.var_images.set(saved['enable_images'])
         if 'enable_files' in saved:
