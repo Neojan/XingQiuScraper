@@ -200,8 +200,8 @@ class Scraper:
 
     def save_topic_as_markdown(self, topic):
         create_time = topic.get('create_time', 'unknown')
-        if len(create_time) >= 7:
-            year_month = create_time[:7]
+        if len(create_time) >= 10:
+            year_month = create_time[:10]
         else:
             year_month = 'unknown'
 
