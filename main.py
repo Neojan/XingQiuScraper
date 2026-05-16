@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from scraper import ScraperConfig, Scraper, parse_time_arg
 
 # 配置文件路径
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.zsxq_config.json')
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'zsxq_config.json')
 
 
 def load_config():

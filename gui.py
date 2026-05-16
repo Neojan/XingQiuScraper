@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from scraper import ScraperConfig, Scraper, parse_time_arg
 
 # ---- 配置持久化 ----
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.zsxq_config.json')
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'zsxq_config.json')
 
 
 def load_saved_config():
@@ -538,7 +538,7 @@ class App:
         saved = load_saved_config()
         if not saved:
             # 如果没有保存的配置，使用默认 cookies
-            default_cookies = 'sensorsdata2015jssdkcross=%7B%22distinct_id%22%3A%2228282542855111%22%2C%22first_id%22%3A%221956c28a227557-0d59562d16f75c8-7e433c49-1296000-1956c28a228c2c%22%2C%22props%22%3A%7B%22%24latest_traffic_source_type%22%3A%22%E7%9B%B4%E6%8E%A5%E6%B5%81%E9%87%8F%22%2C%22%24latest_search_keyword%22%3A%22%E6%9C%AA%E5%8F%96%E5%88%B0%E5%80%BC_%E7%9B%B4%E6%8E%A5%E6%89%93%E5%BC%80%22%2C%22%24latest_referrer%22%3A%22%22%7D%2C%22identities%22%3A%22eyIkaWRlbnRpdHlfY29va2llX2lkIjoiMTk1NmMyOGEyMjc1NTctMGQ1OTU2MmQxNmY3NWM4LTdlNDMzYzQ5LTEyOTYwMDAtMTk1NmMyOGEyMjhjMmMiLCIkaWRlbnRpdHlfbG9naW5faWQiOiIyODI4MjU0Mjg1NTExMSJ9%22%2C%22history_login_id%22%3A%7B%22name%22%3A%22%24identity_login_id%22%2C%22value%22%3A%2228282542855111%22%7D%7D; abtest_env=product; _c_WBKFRo=RUnziX2Q55t7ToRSewaVanjGdIXCMy3ZQodI2AuL; _nb_ioWEgULi=; zsxq_access_token=80200F68-58F0-4D2D-8248-17FEFE86999F_EF970781A970961C'
+            default_cookies = ''
             self.text_cookie.insert('1.0', default_cookies)
             return
 
